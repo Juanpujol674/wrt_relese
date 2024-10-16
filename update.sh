@@ -158,25 +158,43 @@ chk_fullconenat() {
 }
 
 update_ath11k_fw() {
-    if [[ -d $BUILD_DIR/package/firmware/ath11k-firmware ]]; then
-        if grep -qP "PKG_SOURCE_VERSION:=795809c7041582bd51bdfaa1f548b916ae8d4382" $BUILD_DIR/package/firmware/ath11k-firmware/Makefile; then
-            \cp -f $BASE_PATH/patches/Makefile.ath11k $BUILD_DIR/package/firmware/ath11k-firmware/Makefile
+    local ath11k_fw_path="$BUILD_DIR/package/firmware/ath11k-firmware"
+    if [[ -d $ath11k_fw_path ]]; then
+        if grep -qP "PKG_SOURCE_VERSION:=795809c7041582bd51bdfaa1f548b916ae8d4382" $ath11k_fw_path/Makefile; then
+            \cp -f $BASE_PATH/patches/Makefile.ath11k $ath11k_fw_path/Makefile
+        fi
+    fi
+    local ath11k_caldata_path="$BUILD_DIR/target/linux/qualcommax/ipq60xx/base-files/lib/preinit"
+    if [ ! -d $ath11k_caldata_path ]; then
+        if [ -d $BUILD_DIR/target/linux/qualcommax/ipq60xx/base-files/lib ]; then
+            mkdir -p $ath11k_caldata_path
+            \cp -f $BASE_PATH/patches/81_fix_eeprom $ath11k_caldata_path
+        fi
+    else
+        if [ ! -f $ath11k_caldata_path/81_fix_eeprom ]; then
+            \cp -f $BASE_PATH/patches/81_fix_eeprom $ath11k_caldata_path
         fi
     fi
 }
 
 fix_qualcommax_mk() {
-    sed -i 's/wpad-basic-mbedtls/wpad-openssl/g' $BUILD_DIR/target/linux/qualcommax/Makefile
-    if ! grep -q "lan1" "$BUILD_DIR/target/linux/qualcommax/files/arch/arm64/boot/dts/qcom/ipq6018-jdcloud-ax1800-pro.dts"; then
-        \cp -f "$BASE_PATH/patches/ipq6018-jdcloud-ax1800-pro.dts" \
-            "$BUILD_DIR/target/linux/qualcommax/files/arch/arm64/boot/dts/qcom"
+    if [ -f $BUILD_DIR/target/linux/qualcommax/Makefile ]; then
+        sed -i 's/wpad-basic-mbedtls/wpad-openssl/g' $BUILD_DIR/target/linux/qualcommax/Makefile
+    fi
+    local qcom_dts_path="$BUILD_DIR/target/linux/qualcommax/files/arch/arm64/boot/dts/qcom"
+    if [ -d $qcom_dts_path ]; then
+        if ! grep -q "lan1" $qcom_dts_path/ipq6018-jdcloud-ax1800-pro.dts; then
+            \cp -f $BASE_PATH/patches/ipq6018-jdcloud-ax1800-pro.dts $qcom_dts_path
+        fi
     fi
 }
 
 fix_upgrade_script() {
-    if [ ! -f $BUILD_DIR/target/linux/qualcommax/ipq60xx/base-files/lib/upgrade/mmc.sh ]; then
-        \cp -f "$BASE_PATH/patches/mmc.sh" \
-            "$BUILD_DIR/target/linux/qualcommax/ipq60xx/base-files/lib/upgrade"
+    if [ -d $BUILD_DIR/target/linux/qualcommax/ipq60xx/base-files/lib/upgrade ]; then
+        if [ ! -f $BUILD_DIR/target/linux/qualcommax/ipq60xx/base-files/lib/upgrade/mmc.sh ]; then
+            \cp -f "$BASE_PATH/patches/mmc.sh" \
+                "$BUILD_DIR/target/linux/qualcommax/ipq60xx/base-files/lib/upgrade"
+        fi
     fi
 }
 
