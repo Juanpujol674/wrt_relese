@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 
 set -e
+set -o errexit
+set -o errtrace
+
+# 定义错误处理函数
+error_handler() {
+    echo "Error occurred in script at line: ${BASH_LINENO[0]}, command: '${BASH_COMMAND}'"
+}
+
+# 设置trap捕获ERR信号
+trap 'error_handler' ERR
 
 source /etc/profile
 BASE_PATH=$(cd $(dirname $0) && pwd)
@@ -34,6 +44,15 @@ clean_up() {
     if [[ -d $BUILD_DIR/logs ]]; then
         \rm -rf $BUILD_DIR/logs/*
     fi
+    mkdir -p $BUILD_DIR/tmp
+    echo "1" >$BUILD_DIR/tmp/.build
+}
+
+update_stamp_time() {
+    # 使用 find 命令查找目录并排除包含 "target" 字符串的目录
+    find "$BUILD_DIR/staging_dir" -type d -name "stamp" -not -path "*target*" | while read -r dir; do
+        find "$dir" -type f -exec touch {} +
+    done
 }
 
 reset_feeds_conf() {
@@ -74,11 +93,11 @@ remove_unwanted_packages() {
         "luci-app-openclash" "luci-app-mihomo"
     )
     local packages_net=(
-        "haproxy" "xray-core" "xray-plugin" "dns2tcp" "dns2socks" "alist" "hysteria"
+        "haproxy" "xray-core" "xray-plugin" "dns2socks" "alist" "hysteria"
         "smartdns" "mosdns" "adguardhome" "ddns-go" "naiveproxy" "shadowsocks-rust"
         "sing-box" "v2ray-core" "v2ray-geodata" "v2ray-plugin" "tuic-client"
         "chinadns-ng" "ipt2socks" "tcping" "trojan-plus" "simple-obfs"
-        "shadowsocksr-libev" "dae" "daed" "mihomo"
+        "shadowsocksr-libev" "dae" "daed" "mihomo" "geoview"
     )
     local small8_packages=(
         "ppp" "firewall" "dae" "daed" "daed-next" "libnftnl" "nftables" "dnsmasq"
@@ -111,13 +130,13 @@ update_golang() {
 
 install_small8() {
     ./scripts/feeds install -p small8 -f xray-core xray-plugin dns2tcp dns2socks haproxy hysteria \
-        naiveproxy shadowsocks-rust sing-box v2ray-core v2ray-geodata v2ray-plugin tuic-client \
-        chinadns-ng ipt2socks tcping trojan-plus simple-obfs shadowsocksr-libev luci-app-passwall \
-        alist luci-app-alist smartdns luci-app-smartdns v2dat mosdns luci-app-mosdns adguardhome \
-        luci-app-adguardhome ddns-go luci-app-ddns-go taskd luci-lib-xterm luci-lib-taskd \
+        naiveproxy shadowsocks-rust sing-box v2ray-core v2ray-geodata v2ray-geoview v2ray-plugin \
+        tuic-client chinadns-ng ipt2socks tcping trojan-plus simple-obfs shadowsocksr-libev \
+        luci-app-passwall alist luci-app-alist smartdns luci-app-smartdns v2dat mosdns luci-app-mosdns \
+        adguardhome luci-app-adguardhome ddns-go luci-app-ddns-go taskd luci-lib-xterm luci-lib-taskd \
         luci-app-store quickstart luci-app-quickstart luci-app-istorex luci-app-cloudflarespeedtest \
         luci-theme-argon netdata luci-app-netdata lucky luci-app-lucky luci-app-openclash mihomo \
-        luci-app-mihomo luci-app-homeproxy
+        luci-app-mihomo luci-app-homeproxy luci-app-amlogic
 }
 
 install_feeds() {
@@ -138,8 +157,10 @@ fix_default_set() {
     #修改默认主题
     sed -i "s/luci-theme-bootstrap/luci-theme-$THEME_SET/g" $(find ./feeds/luci/collections/ -type f -name "Makefile")
 
-    if [[ -f ./package/emortal/autocore/files/tempinfo ]]; then
-        if [[ -f $BASE_PATH/patches/tempinfo ]]; then
+    install -m 755 -D "$BASE_PATH/patches/99_set_argon_primary" "$BUILD_DIR/package/base-files/files/etc/uci-defaults/99_set_argon_primary"
+
+    if [ -f $BUILD_DIR/package/emortal/autocore/files/tempinfo ]; then
+        if [ -f $BASE_PATH/patches/tempinfo ]; then
             \cp -f $BASE_PATH/patches/tempinfo ./package/emortal/autocore/files/tempinfo
         fi
     fi
@@ -180,8 +201,13 @@ fix_mk_def_depends() {
 }
 
 add_wifi_default_set() {
-    if [ -d $BUILD_DIR/package/base-files/files/etc/uci-defaults ]; then
-        install -m 755 -D "$BASE_PATH/patches/992_set-wifi-uci.sh" "$BUILD_DIR/package/base-files/files/etc/uci-defaults/992_set-wifi-uci.sh"
+    local uci_dir="$BUILD_DIR/package/base-files/files/etc/uci-defaults"
+    local ipq_uci_dir="$BUILD_DIR/target/linux/qualcommax/ipq60xx/base-files/etc/uci-defaults"
+    if [ -f "$uci_dir/990_set-wireless.sh" ]; then
+        \rm -f "$uci_dir/990_set-wireless.sh"
+    fi
+    if [ -d "$ipq_uci_dir" ]; then
+        install -m 755 -D "$BASE_PATH/patches/992_set-wifi-uci.sh" "$ipq_uci_dir/992_set-wifi-uci.sh"
     fi
 }
 
@@ -194,23 +220,39 @@ update_default_lan_addr() {
 
 remove_something_nss_kmod() {
     local ipq_target_path="$BUILD_DIR/target/linux/qualcommax/ipq60xx/target.mk"
+    local ipq_mk_path="$BUILD_DIR/target/linux/qualcommax/Makefile"
     if [ -f $ipq_target_path ]; then
         sed -i 's/kmod-qca-nss-drv-eogremgr//g' $ipq_target_path
         sed -i 's/kmod-qca-nss-drv-gre//g' $ipq_target_path
-        sed -i 's/kmod-qca-nss-drv-pvxlanmgr//g' $ipq_target_path
-        sed -i 's/kmod-qca-nss-drv-vxlanmgr//g' $ipq_target_path
+        sed -i 's/kmod-qca-nss-drv-map-t//g' $ipq_target_path
+        sed -i 's/kmod-qca-nss-drv-match//g' $ipq_target_path
         sed -i 's/kmod-qca-nss-drv-mirror//g' $ipq_target_path
+        sed -i 's/kmod-qca-nss-drv-pvxlanmgr//g' $ipq_target_path
         sed -i 's/kmod-qca-nss-drv-tun6rd//g' $ipq_target_path
         sed -i 's/kmod-qca-nss-drv-tunipip6//g' $ipq_target_path
+        sed -i 's/kmod-qca-nss-drv-vxlanmgr//g' $ipq_target_path
         sed -i 's/kmod-qca-nss-macsec//g' $ipq_target_path
-        sed -i 's/kmod-qca-nss-drv-match//g' $ipq_target_path
+    fi
+
+    if [ -f $ipq_mk_path ]; then
+        sed -i '/kmod-qca-nss-crypto/d' $ipq_mk_path
+        sed -i '/kmod-qca-nss-drv-eogremgr/d' $ipq_mk_path
+        sed -i '/kmod-qca-nss-drv-gre/d' $ipq_mk_path
+        sed -i '/kmod-qca-nss-drv-map-t/d' $ipq_mk_path
+        sed -i '/kmod-qca-nss-drv-match/d' $ipq_mk_path
+        sed -i '/kmod-qca-nss-drv-mirror/d' $ipq_mk_path
+        sed -i '/kmod-qca-nss-drv-tun6rd/d' $ipq_mk_path
+        sed -i '/kmod-qca-nss-drv-tunipip6/d' $ipq_mk_path
+        sed -i '/kmod-qca-nss-drv-vxlanmgr/d' $ipq_mk_path
+        sed -i '/kmod-qca-nss-drv-wifi-meshmgr/d' $ipq_mk_path
+        sed -i '/kmod-qca-nss-macsec/d' $ipq_mk_path
     fi
 }
 
 remove_affinity_script() {
     local affinity_script_path="$BUILD_DIR/target/linux/qualcommax/ipq60xx/base-files/etc/init.d/set-irq-affinity"
-    if [ -d "$(dirname "$affinity_script_path")" ]; then
-        [ -f "$affinity_script_path" ] && \rm -f "$affinity_script_path"
+    if [ -f "$affinity_script_path" ]; then
+        \rm -f "$affinity_script_path"
     fi
 }
 
@@ -230,32 +272,30 @@ update_ath11k_fw() {
 
     if [ -d "$(dirname "$makefile")" ] && [ -f "$makefile" ]; then
         [ -f "$new_mk" ] && \rm -f "$new_mk"
-        curl -o "$new_mk" https://raw.githubusercontent.com/VIKINGYFY/immortalwrt/refs/heads/main/package/firmware/ath11k-firmware/Makefile
+        curl -L -o "$new_mk" https://raw.githubusercontent.com/VIKINGYFY/immortalwrt/refs/heads/main/package/firmware/ath11k-firmware/Makefile
         \mv -f "$new_mk" "$makefile"
     fi
 }
 
 fix_mkpkg_format_invalid() {
-    if [ -f $BUILD_DIR/feeds/small8/luci-lib-taskd/Makefile ]; then
-        sed -i 's/>=1\.0\.3-1/>=1\.0\.3-r1/g' $BUILD_DIR/feeds/small8/luci-lib-taskd/Makefile
-    fi
-    if [ -f $BUILD_DIR/feeds/small8/v2ray-geodata/Makefile ]; then
-        sed -i 's/VER)-\$(PKG_RELEASE)/VER)-r\$(PKG_RELEASE)/g' $BUILD_DIR/feeds/small8/v2ray-geodata/Makefile
-    fi
-    if [ -f $BUILD_DIR/feeds/small8/luci-app-openclash/Makefile ]; then
-        sed -i 's/PKG_RELEASE:=beta/PKG_RELEASE:=1/g' $BUILD_DIR/feeds/small8/luci-app-openclash/Makefile
-    fi
-    if [ -f $BUILD_DIR/feeds/small8/luci-app-store/Makefile ]; then
-        sed -i 's/PKG_VERSION:=0\.1\.26-3/PKG_VERSION:=0\.1\.26/g' $BUILD_DIR/feeds/small8/luci-app-store/Makefile
-        sed -i 's/PKG_RELEASE:=$/PKG_RELEASE:=3/g' $BUILD_DIR/feeds/small8/luci-app-store/Makefile
-    fi
-    if [ -f $BUILD_DIR/feeds/small8/luci-app-passwall/Makefile ]; then
-        sed -i 's/PKG_VERSION:=4\.78-4/PKG_VERSION:=4\.78/g' $BUILD_DIR/feeds/small8/luci-app-passwall/Makefile
-        sed -i 's/PKG_RELEASE:=$/PKG_RELEASE:=4/g' $BUILD_DIR/feeds/small8/luci-app-passwall/Makefile
-    fi
-    if [ -f $BUILD_DIR/feeds/small8/luci-app-quickstart/Makefile ]; then
-        sed -i 's/PKG_VERSION:=0\.8\.16-1/PKG_VERSION:=0\.8\.16/g' $BUILD_DIR/feeds/small8/luci-app-quickstart/Makefile
-        sed -i 's/PKG_RELEASE:=$/PKG_RELEASE:=1/g' $BUILD_DIR/feeds/small8/luci-app-quickstart/Makefile
+    if [[ $BUILD_DIR =~ "imm-nss" ]]; then
+        if [ -f $BUILD_DIR/feeds/small8/v2ray-geodata/Makefile ]; then
+            sed -i 's/VER)-\$(PKG_RELEASE)/VER)-r\$(PKG_RELEASE)/g' $BUILD_DIR/feeds/small8/v2ray-geodata/Makefile
+        fi
+        if [ -f $BUILD_DIR/feeds/small8/luci-lib-taskd/Makefile ]; then
+            sed -i 's/>=1\.0\.3-1/>=1\.0\.3-r1/g' $BUILD_DIR/feeds/small8/luci-lib-taskd/Makefile
+        fi
+        if [ -f $BUILD_DIR/feeds/small8/luci-app-openclash/Makefile ]; then
+            sed -i 's/PKG_RELEASE:=beta/PKG_RELEASE:=1/g' $BUILD_DIR/feeds/small8/luci-app-openclash/Makefile
+        fi
+        if [ -f $BUILD_DIR/feeds/small8/luci-app-quickstart/Makefile ]; then
+            sed -i 's/PKG_VERSION:=0\.8\.16-1/PKG_VERSION:=0\.8\.16/g' $BUILD_DIR/feeds/small8/luci-app-quickstart/Makefile
+            sed -i 's/PKG_RELEASE:=$/PKG_RELEASE:=1/g' $BUILD_DIR/feeds/small8/luci-app-quickstart/Makefile
+        fi
+        if [ -f $BUILD_DIR/feeds/small8/luci-app-store/Makefile ]; then
+            sed -i 's/PKG_VERSION:=0\.1\.27-1/PKG_VERSION:=0\.1\.27/g' $BUILD_DIR/feeds/small8/luci-app-store/Makefile
+            sed -i 's/PKG_RELEASE:=$/PKG_RELEASE:=1/g' $BUILD_DIR/feeds/small8/luci-app-store/Makefile
+        fi
     fi
 }
 
@@ -263,6 +303,7 @@ add_ax6600_led() {
     local target_dir="$BUILD_DIR/target/linux/qualcommax/ipq60xx/base-files"
     local initd_dir="$target_dir/etc/init.d"
     local sbin_dir="$target_dir/sbin"
+    local athena_led_dir="$BUILD_DIR/package/emortal/luci-app-athena-led"
 
     if [ -d "$(dirname "$target_dir")" ] && [ -d "$initd_dir" ]; then
         cat <<'EOF' >"$initd_dir/start_screen"
@@ -271,28 +312,45 @@ add_ax6600_led() {
 START=99
 
 boot() {
-	case $(board_name) in
-	jdcloud,ax6600)
-		ax6600_led >/dev/null 2>&1 &
-		;;
-	esac
+    case $(board_name) in
+    jdcloud,ax6600|\
+    jdcloud,re-cs-02)
+        ax6600_led >/dev/null 2>&1 &
+        ;;
+    esac
 }
 EOF
-
+        chmod +x "$initd_dir/start_screen"
         mkdir -p "$sbin_dir"
         install -m 755 -D "$BASE_PATH/patches/ax6600_led" "$sbin_dir/ax6600_led"
 
         # 临时加一下
         install -m 755 -D "$BASE_PATH/patches/cpuusage" "$sbin_dir/cpuusage"
     fi
+
+    \rm -rf $athena_led_dir 2>/dev/null
 }
 
 chanage_cpuusage() {
     local luci_dir="$BUILD_DIR/feeds/luci/modules/luci-base/root/usr/share/rpcd/ucode/luci"
+    local imm_script1="$BUILD_DIR/package/base-files/files/etc/uci-defaults/993_set-nss-load.sh"
+    local imm_script2="$BUILD_DIR/package/base-files/files/sbin/cpuusage"
+
     if [ -f $luci_dir ]; then
-        sed -i "s#const fd = popen('top -n1 | awk \\\'/^CPU/ {printf(\"%d%\", 100 - \$8)}\\\'')#const cpuUsageCommand = access('/sbin/cpuusage') ? '/sbin/cpuusage' : \"top -n1 | awk \\'/^CPU/ {printf(\"%d%\", 100 - \$8)}\\'\"#g" $luci_dir
+        sed -i "s#const fd = popen('top -n1 | awk \\\'/^CPU/ {printf(\"%d%\", 100 - \$8)}\\\'')#const cpuUsageCommand = access('/sbin/cpuusage') ? '/sbin/cpuusage' : 'top -n1 | awk \\\'/^CPU/ {printf(\"%d%\", 100 - \$8)}\\\''#g" $luci_dir
         sed -i '/cpuUsageCommand/a \\t\t\tconst fd = popen(cpuUsageCommand);' $luci_dir
     fi
+
+    if [ -f "$imm_script1" ]; then
+        \rm -f "$imm_script1"
+    fi
+
+    if [ -f "$imm_script2" ]; then
+        \rm -f "$imm_script2"
+    fi
+
+    # 临时放一下，清理脚本
+    find $BUILD_DIR/package/base-files/files/etc/uci-defaults/ -type f -name "9*.sh" -exec rm -f {} +
 }
 
 update_tcping() {
@@ -300,7 +358,7 @@ update_tcping() {
 
     if [ -d "$(dirname "$tcping_path")" ] && [ -f "$tcping_path" ]; then
         \rm -f "$tcping_path"
-        curl -o "$tcping_path" https://raw.githubusercontent.com/xiaorouji/openwrt-passwall-packages/refs/heads/main/tcping/Makefile
+        curl -L -o "$tcping_path" https://raw.githubusercontent.com/xiaorouji/openwrt-passwall-packages/refs/heads/main/tcping/Makefile
     fi
 }
 
@@ -314,17 +372,20 @@ START=99
 boot() {
     # 重新添加缓存请求定时任务
     sed -i '/drop_caches/d' /etc/crontabs/root
-    echo "15 3 * * * sync && echo 3 > /proc/sys/vm/drop_caches" >> /etc/crontabs/root
+    echo "15 3 * * * sync && echo 3 > /proc/sys/vm/drop_caches" >>/etc/crontabs/root
 
     # 删除现有的 wireguard_check 任务
     sed -i '/wireguard_check/d' /etc/crontabs/root
 
     # 获取 WireGuard 接口名称
     local wg_ifname=$(wg show | awk '/interface/ {print $2}')
-    
+
     if [ -n "$wg_ifname" ]; then
-        # 添加新的 wireguard_check 任务，每3分钟执行一次
-        echo "*/3 * * * * /sbin/wireguard_check.sh" >> /etc/crontabs/root
+        # 添加新的 wireguard_check 任务，每10分钟执行一次
+        echo "*/10 * * * * /sbin/wireguard_check.sh" >>/etc/crontabs/root
+        uci set system.@system[0].cronloglevel='9'
+        uci commit system
+        /etc/init.d/cron restart
     fi
 
     # 应用新的 crontab 配置
@@ -341,9 +402,88 @@ add_wg_chk() {
     fi
 }
 
+update_pw_ha_chk() {
+    local pw_ha_path="$BUILD_DIR/feeds/small8/luci-app-passwall/root/usr/share/passwall/haproxy_check.sh"
+    local new_path="$BASE_PATH/patches/haproxy_check.sh"
+    local ha_lua_path="$BUILD_DIR/feeds/small8/luci-app-passwall/root/usr/share/passwall/haproxy.lua"
+
+    if [ -f "$pw_ha_path" ]; then
+        rm -f "$pw_ha_path"
+    fi
+
+    install -m 755 -D "$new_path" "$pw_ha_path"
+
+    if [ -f $ha_lua_path ]; then
+        sed -i 's/rise 1 fall 3/rise 3 fall 2/g' "$ha_lua_path"
+    fi
+}
+
+install_opkg_distfeeds() {
+    # 只处理aarch64
+    if ! grep -q "nss-packages" "$BUILD_DIR/feeds.conf.default"; then
+        return
+    fi
+    local emortal_def_dir="$BUILD_DIR/package/emortal/default-settings"
+    local distfeeds_conf="$emortal_def_dir/files/99-distfeeds.conf"
+
+    if [ -d "$emortal_def_dir" ] && [ ! -f "$distfeeds_conf" ]; then
+        install -m 755 -D "$BASE_PATH/patches/99-distfeeds.conf" "$distfeeds_conf"
+
+        sed -i "/define Package\/default-settings\/install/a\\
+\\t\$(INSTALL_DIR) \$(1)/etc\\n\
+\t\$(INSTALL_DATA) ./files/99-distfeeds.conf \$(1)/etc/99-distfeeds.conf\n" $emortal_def_dir/Makefile
+
+        sed -i "/exit 0/i\\
+[ -f \'/etc/99-distfeeds.conf\' ] && mv \'/etc/99-distfeeds.conf\' \'/etc/opkg/distfeeds.conf\'\n\
+sed -ri \'/check_signature/s@^[^#]@#&@\' /etc/opkg.conf\n" $emortal_def_dir/files/99-default-settings
+    fi
+}
+
+update_nss_pbuf_performance() {
+    local pbuf_path="$BUILD_DIR/package/kernel/mac80211/files/pbuf.uci"
+    if [ -d "$(dirname "$pbuf_path")" ] && [ -f $pbuf_path ]; then
+        sed -i "s/auto_scale '1'/auto_scale 'off'/g" $pbuf_path
+        sed -i "s/scaling_governor 'schedutil'/scaling_governor 'performance'/g" $pbuf_path
+    fi
+}
+
+set_build_signature() {
+    local file="$BUILD_DIR/feeds/luci/modules/luci-mod-status/htdocs/luci-static/resources/view/status/include/10_system.js"
+    if [ -d "$(dirname "$file")" ] && [ -f $file ]; then
+        sed -i "s/(\(luciversion || ''\))/(\1) + (' \/ build by ZqinKing')/g" "$file"
+    fi
+}
+
+fix_compile_vlmcsd() {
+    local dir="$BUILD_DIR/feeds/packages/net/vlmcsd"
+    local patch_src="$BASE_PATH/patches/001-fix_compile_with_ccache.patch"
+    local patch_dest="$dir/patches"
+
+    if [ -d "$dir" ]; then
+        mkdir -p "$patch_dest"
+        cp -f "$patch_src" "$patch_dest"
+    fi
+}
+
+update_nss_diag() {
+    local file="$BUILD_DIR/package/kernel/mac80211/files/nss_diag.sh"
+    if [ -d "$(dirname "$file")" ] && [ -f "$file" ]; then
+        \rm -f "$file"
+        install -m 755 -D "$BASE_PATH/patches/nss_diag.sh" "$file"
+    fi
+}
+
+update_menu_location() {
+    local samba4_path="$BUILD_DIR/feeds/luci/applications/luci-app-samba4/root/usr/share/luci/menu.d/luci-app-samba4.json"
+    if [ -d "$(dirname "$samba4_path")" ] && [ -f "$samba4_path" ]; then
+        sed -i 's/nas/services/g' "$samba4_path"
+    fi
+}
+
 main() {
     clone_repo
     clean_up
+    update_stamp_time
     reset_feeds_conf
     update_feeds
     remove_unwanted_packages
@@ -359,12 +499,19 @@ main() {
     remove_affinity_script
     fix_build_for_openssl
     update_ath11k_fw
-    # fix_mkpkg_format_invalid
+    fix_mkpkg_format_invalid
     chanage_cpuusage
     update_tcping
     add_wg_chk
     add_ax6600_led
     set_custom_task
+    update_pw_ha_chk
+    install_opkg_distfeeds
+    update_nss_pbuf_performance
+    set_build_signature
+    fix_compile_vlmcsd
+    update_nss_diag
+    update_menu_location
     install_feeds
 }
 

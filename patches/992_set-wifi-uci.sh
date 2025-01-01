@@ -48,13 +48,16 @@ redmi_ax5_wifi_cfg() {
 }
 
 case "${board_name}" in
-jdcloud,ax1800-pro)
+jdcloud,ax1800-pro|\
+jdcloud,re-ss-01)
     jdc_ax1800_pro_wifi_cfg
     ;;
-jdcloud,ax6600)
+jdcloud,ax6600|\
+jdcloud,re-cs-02)
     jdc_ax6600_wifi_cfg
     ;;
-redmi,ax5)
+redmi,ax5|\
+redmi,ax5-jdcloud)
     redmi_ax5_wifi_cfg
     ;;
 *)

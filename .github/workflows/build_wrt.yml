@@ -8,15 +8,18 @@ on:
         required: true
         description: Device Model
         type: choice
-        default: jdcloud_ipq60xx_libwrt
+        default: jdcloud_ipq60xx_immwrt
         options:
           - jdcloud_ipq60xx_libwrt
-          - jdcloud_ax1800pro-ax6600_immwrt
-          - cmcc_rax3000m_immwrt21
+          - jdcloud_ipq60xx_immwrt
+          - jdcloud_ipq60xx_lede
+          - cmcc_rax3000m_immwrt
           - redmi_ax6000_immwrt21
-          - jdcloud_ax6000_immwrt23
-          - redmi_ax5_libwrt
+          - jdcloud_ax6000_immwrt
+          - redmi_ax5_immwrt
           - zn_m2_libwrt
+          - x64_immwrt
+          - jdcloud_ipq60xx_k612
       runs-on:
         required: true
         description: Runs on...
@@ -56,14 +59,6 @@ jobs:
           /var/lib/mysql* /var/log/azure*"
         testing: false
 
-    - name: Cache Dependencies
-      uses: actions/cache@v4
-      with:
-        path: ~/.cache
-        key: ${{ runner.os }}-build-${{ hashFiles('**/build.sh') }}
-        restore-keys: |
-          ${{ runner.os }}-build-
-
     - name: Initialization Environment
       env:
         DEBIAN_FRONTEND: noninteractive
@@ -79,10 +74,31 @@ jobs:
         sudo -E systemctl daemon-reload
         sudo -E timedatectl set-timezone "Asia/Shanghai"
 
+    - name: Machine Information
+      run: |
+        echo "=============================="
+        lscpu | grep -E "name|Core|Thread"
+        echo "=============================="
+        df -h
+        echo "=============================="
+
     - name: Initialization Values
       run: |
         export BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d_%H.%M.%S")
         echo "BUILD_DATE=$BUILD_DATE" >> $GITHUB_ENV
+
+    - name: Pre Clone
+      run: ./pre_clone_action.sh ${{ inputs.model }}
+
+    - name: Cache Dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ./action_build/.ccache
+          ./action_build/staging_dir
+        key: ${{ inputs.runs-on }}-${{ hashFiles('**/repo_flag') }}-${{ env.BUILD_DATE }}
+        restore-keys: |
+          ${{ inputs.runs-on }}-${{ hashFiles('**/repo_flag') }}-
 
     - name: Build Firmware
       run: ./build.sh ${{ inputs.model }}
