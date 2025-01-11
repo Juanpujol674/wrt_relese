@@ -48,13 +48,6 @@ clean_up() {
     echo "1" >$BUILD_DIR/tmp/.build
 }
 
-update_stamp_time() {
-    # 使用 find 命令查找目录并排除包含 "target" 字符串的目录
-    find "$BUILD_DIR/staging_dir" -type d -name "stamp" -not -path "*target*" | while read -r dir; do
-        find "$dir" -type f -exec touch {} +
-    done
-}
-
 reset_feeds_conf() {
     git reset --hard origin/$REPO_BRANCH
     git clean -f -d
@@ -119,6 +112,9 @@ remove_unwanted_packages() {
     if [[ -d ./package/istore ]]; then
         \rm -rf ./package/istore
     fi
+
+    # 临时放一下，清理脚本
+    find $BUILD_DIR/package/base-files/files/etc/uci-defaults/ -type f -name "9*.sh" -exec rm -f {} +
 }
 
 update_golang() {
@@ -154,27 +150,32 @@ install_feeds() {
 }
 
 fix_default_set() {
-    #修改默认主题
-    sed -i "s/luci-theme-bootstrap/luci-theme-$THEME_SET/g" $(find ./feeds/luci/collections/ -type f -name "Makefile")
+    # 修改默认主题
+    if [ -d "$BUILD_DIR/feeds/luci/collections/" ]; then
+        find "$BUILD_DIR/feeds/luci/collections/" -type f -name "Makefile" -exec sed -i "s/luci-theme-bootstrap/luci-theme-$THEME_SET/g" {} \;
+    fi
 
-    install -m 755 -D "$BASE_PATH/patches/99_set_argon_primary" "$BUILD_DIR/package/base-files/files/etc/uci-defaults/99_set_argon_primary"
+    if [ -d "$BUILD_DIR/feeds/small8/luci-theme-argon" ]; then
+        find "$BUILD_DIR/feeds/small8/luci-theme-argon" -type f -name "cascade*" -exec sed -i 's/--bar-bg/--primary/g' {} \;
+    fi
 
-    if [ -f $BUILD_DIR/package/emortal/autocore/files/tempinfo ]; then
-        if [ -f $BASE_PATH/patches/tempinfo ]; then
-            \cp -f $BASE_PATH/patches/tempinfo ./package/emortal/autocore/files/tempinfo
+    install -Dm755 "$BASE_PATH/patches/99_set_argon_primary" "$BUILD_DIR/package/base-files/files/etc/uci-defaults/99_set_argon_primary"
+
+    if [ -f "$BUILD_DIR/package/emortal/autocore/files/tempinfo" ]; then
+        if [ -f "$BASE_PATH/patches/tempinfo" ]; then
+            \cp -f "$BASE_PATH/patches/tempinfo" "$BUILD_DIR/package/emortal/autocore/files/tempinfo"
         fi
     fi
 }
 
 fix_miniupmpd() {
-    local PKG_HASH=$(awk -F"=" '/^PKG_HASH:/ {print $2}' ./feeds/packages/net/miniupnpd/Makefile)
-    if [[ $PKG_HASH == "fbdd5501039730f04a8420ea2f8f54b7df63f9f04cde2dc67fa7371e80477bbe" ]]; then
-        if [[ -f $BASE_PATH/patches/400-fix_nft_miniupnp.patch ]]; then
-            if [[ ! -d ./feeds/packages/net/miniupnpd/patches ]]; then
-                mkdir -p ./feeds/packages/net/miniupnpd/patches
-            fi
-            \cp -f $BASE_PATH/patches/400-fix_nft_miniupnp.patch ./feeds/packages/net/miniupnpd/patches/
-        fi
+    # 从 miniupnpd 的 Makefile 中提取 PKG_HASH 的值
+    local PKG_HASH=$(grep '^PKG_HASH:=' "$BUILD_DIR/feeds/packages/net/miniupnpd/Makefile" 2>/dev/null | cut -d '=' -f 2)
+
+    # 检查 miniupnp 版本，并且补丁文件是否存在
+    if [[ $PKG_HASH == "fbdd5501039730f04a8420ea2f8f54b7df63f9f04cde2dc67fa7371e80477bbe" && -f "$BASE_PATH/patches/400-fix_nft_miniupnp.patch" ]]; then
+        # 使用 install 命令创建目录并复制补丁文件
+        install -Dm644 "$BASE_PATH/patches/400-fix_nft_miniupnp.patch" "$BUILD_DIR/feeds/packages/net/miniupnpd/patches/400-fix_nft_miniupnp.patch"
     fi
 }
 
@@ -201,13 +202,9 @@ fix_mk_def_depends() {
 }
 
 add_wifi_default_set() {
-    local uci_dir="$BUILD_DIR/package/base-files/files/etc/uci-defaults"
     local ipq_uci_dir="$BUILD_DIR/target/linux/qualcommax/ipq60xx/base-files/etc/uci-defaults"
-    if [ -f "$uci_dir/990_set-wireless.sh" ]; then
-        \rm -f "$uci_dir/990_set-wireless.sh"
-    fi
     if [ -d "$ipq_uci_dir" ]; then
-        install -m 755 -D "$BASE_PATH/patches/992_set-wifi-uci.sh" "$ipq_uci_dir/992_set-wifi-uci.sh"
+        install -Dm755 "$BASE_PATH/patches/992_set-wifi-uci.sh" "$ipq_uci_dir/992_set-wifi-uci.sh"
     fi
 }
 
@@ -300,41 +297,21 @@ fix_mkpkg_format_invalid() {
 }
 
 add_ax6600_led() {
-    local target_dir="$BUILD_DIR/target/linux/qualcommax/ipq60xx/base-files"
-    local initd_dir="$target_dir/etc/init.d"
-    local sbin_dir="$target_dir/sbin"
     local athena_led_dir="$BUILD_DIR/package/emortal/luci-app-athena-led"
 
-    if [ -d "$(dirname "$target_dir")" ] && [ -d "$initd_dir" ]; then
-        cat <<'EOF' >"$initd_dir/start_screen"
-#!/bin/sh /etc/rc.common
+    # 删除旧的目录（如果存在）
+    rm -rf "$athena_led_dir" 2>/dev/null
 
-START=99
-
-boot() {
-    case $(board_name) in
-    jdcloud,ax6600|\
-    jdcloud,re-cs-02)
-        ax6600_led >/dev/null 2>&1 &
-        ;;
-    esac
-}
-EOF
-        chmod +x "$initd_dir/start_screen"
-        mkdir -p "$sbin_dir"
-        install -m 755 -D "$BASE_PATH/patches/ax6600_led" "$sbin_dir/ax6600_led"
-
-        # 临时加一下
-        install -m 755 -D "$BASE_PATH/patches/cpuusage" "$sbin_dir/cpuusage"
-    fi
-
-    \rm -rf $athena_led_dir 2>/dev/null
+    # 克隆最新的仓库
+    git clone --depth=1 https://github.com/NONGFAH/luci-app-athena-led.git "$athena_led_dir"
+    # 设置执行权限
+    chmod +x "$athena_led_dir/root/usr/sbin/athena-led"
+    chmod +x "$athena_led_dir/root/etc/init.d/athena_led"
 }
 
 chanage_cpuusage() {
     local luci_dir="$BUILD_DIR/feeds/luci/modules/luci-base/root/usr/share/rpcd/ucode/luci"
-    local imm_script1="$BUILD_DIR/package/base-files/files/etc/uci-defaults/993_set-nss-load.sh"
-    local imm_script2="$BUILD_DIR/package/base-files/files/sbin/cpuusage"
+    local imm_script1="$BUILD_DIR/package/base-files/files/sbin/cpuusage"
 
     if [ -f $luci_dir ]; then
         sed -i "s#const fd = popen('top -n1 | awk \\\'/^CPU/ {printf(\"%d%\", 100 - \$8)}\\\'')#const cpuUsageCommand = access('/sbin/cpuusage') ? '/sbin/cpuusage' : 'top -n1 | awk \\\'/^CPU/ {printf(\"%d%\", 100 - \$8)}\\\''#g" $luci_dir
@@ -342,15 +319,10 @@ chanage_cpuusage() {
     fi
 
     if [ -f "$imm_script1" ]; then
-        \rm -f "$imm_script1"
+        rm -f "$imm_script1"
     fi
 
-    if [ -f "$imm_script2" ]; then
-        \rm -f "$imm_script2"
-    fi
-
-    # 临时放一下，清理脚本
-    find $BUILD_DIR/package/base-files/files/etc/uci-defaults/ -type f -name "9*.sh" -exec rm -f {} +
+    install -Dm755 "$BASE_PATH/patches/cpuusage" "$BUILD_DIR/target/linux/qualcommax/ipq60xx/base-files/sbin/cpuusage"
 }
 
 update_tcping() {
@@ -398,24 +370,21 @@ EOF
 add_wg_chk() {
     local sbin_path="$BUILD_DIR/package/base-files/files/sbin"
     if [[ -d "$sbin_path" ]]; then
-        install -m 755 -D "$BASE_PATH/patches/wireguard_check.sh" "$sbin_path/wireguard_check.sh"
+        install -Dm755 "$BASE_PATH/patches/wireguard_check.sh" "$sbin_path/wireguard_check.sh"
     fi
 }
 
 update_pw_ha_chk() {
-    local pw_ha_path="$BUILD_DIR/feeds/small8/luci-app-passwall/root/usr/share/passwall/haproxy_check.sh"
     local new_path="$BASE_PATH/patches/haproxy_check.sh"
-    local ha_lua_path="$BUILD_DIR/feeds/small8/luci-app-passwall/root/usr/share/passwall/haproxy.lua"
+    local pw_share_dir="$BUILD_DIR/feeds/small8/luci-app-passwall/root/usr/share/passwall"
+    local pw_ha_path="$pw_share_dir/haproxy_check.sh"
+    local ha_lua_path="$pw_share_dir/haproxy.lua"
+    local smartdns_lua_path="$pw_share_dir/helper_smartdns_add.lua"
 
-    if [ -f "$pw_ha_path" ]; then
-        rm -f "$pw_ha_path"
-    fi
-
-    install -m 755 -D "$new_path" "$pw_ha_path"
-
-    if [ -f $ha_lua_path ]; then
-        sed -i 's/rise 1 fall 3/rise 3 fall 2/g' "$ha_lua_path"
-    fi
+    [ -f "$pw_ha_path" ] && rm -f "$pw_ha_path"
+    install -Dm755 "$new_path" "$pw_ha_path"
+    [ -f "$ha_lua_path" ] && sed -i 's/rise 1 fall 3/rise 3 fall 2/g' "$ha_lua_path"
+    [ -f "$smartdns_lua_path" ] && sed -i '/force-qtype-SOA 65/d' "$smartdns_lua_path"
 }
 
 install_opkg_distfeeds() {
@@ -427,7 +396,7 @@ install_opkg_distfeeds() {
     local distfeeds_conf="$emortal_def_dir/files/99-distfeeds.conf"
 
     if [ -d "$emortal_def_dir" ] && [ ! -f "$distfeeds_conf" ]; then
-        install -m 755 -D "$BASE_PATH/patches/99-distfeeds.conf" "$distfeeds_conf"
+        install -Dm755 "$BASE_PATH/patches/99-distfeeds.conf" "$distfeeds_conf"
 
         sed -i "/define Package\/default-settings\/install/a\\
 \\t\$(INSTALL_DIR) \$(1)/etc\\n\
@@ -469,7 +438,7 @@ update_nss_diag() {
     local file="$BUILD_DIR/package/kernel/mac80211/files/nss_diag.sh"
     if [ -d "$(dirname "$file")" ] && [ -f "$file" ]; then
         \rm -f "$file"
-        install -m 755 -D "$BASE_PATH/patches/nss_diag.sh" "$file"
+        install -Dm755 "$BASE_PATH/patches/nss_diag.sh" "$file"
     fi
 }
 
@@ -480,13 +449,30 @@ update_menu_location() {
     fi
 }
 
+fix_compile_coremark() {
+    local file="$BUILD_DIR/feeds/packages/utils/coremark/Makefile"
+    if [ -d "$(dirname "$file")" ] && [ -f "$file" ]; then
+        sed -i 's/mkdir \$/mkdir -p \$/g' "$file"
+    fi
+}
+
+update_homeproxy() {
+    local repo_url="https://github.com/immortalwrt/homeproxy.git"
+    local target_dir="$BUILD_DIR/feeds/small8/luci-app-homeproxy"
+
+    if [ -d "$target_dir" ]; then
+        rm -rf "$target_dir"
+        git clone "$repo_url" "$target_dir"
+    fi
+}
+
 main() {
     clone_repo
     clean_up
-    update_stamp_time
     reset_feeds_conf
     update_feeds
     remove_unwanted_packages
+    update_homeproxy
     fix_default_set
     fix_miniupmpd
     update_golang
@@ -512,6 +498,7 @@ main() {
     fix_compile_vlmcsd
     update_nss_diag
     update_menu_location
+    fix_compile_coremark
     install_feeds
 }
 
