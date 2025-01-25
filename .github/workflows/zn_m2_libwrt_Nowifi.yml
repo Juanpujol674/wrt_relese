@@ -1,0 +1,67 @@
+name: ZN-M2 LibWRT NoWifi
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free Disk Space
+        uses: FirelightFlagboy/gh-runner-free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: Initialization Environment
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo bash -c 'bash <(curl -sL https://build-scripts.immortalwrt.org/init_build_environment.sh)'
+          sudo -E apt -yqq install dos2unix libfuse-dev
+          sudo -E apt -yqq autoremove --purge
+          sudo -E apt -yqq clean
+          sudo -E systemctl daemon-reload
+          sudo -E timedatectl set-timezone "Asia/Shanghai"
+
+      - name: Initialization Values
+        run: |
+          export BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d_%H.%M.%S")
+          echo "BUILD_DATE=$BUILD_DATE" >> $GITHUB_ENV
+          export BUILD_SRC=$(awk -F"=" '/REPO_URL/ {print $NF}' "./compilecfg/jdcloud_ipq60xx_libwrt_Nowifi.ini")
+          echo "BUILD_SRC=$BUILD_SRC" >> $GITHUB_ENV
+
+      - name: Pre Clone
+        run: ./pre_clone_action.sh zn_m2_libwrt_Nowifi
+
+      - name: Cache Dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ./action_build/.ccache
+            ./action_build/staging_dir
+          key: ${{ runner.os }}-jdcloud-nowifi-${{ hashFiles('**/repo_flag') }}
+          restore-keys: |
+            ${{ runner.os }}-jdcloud-nowifi-
+
+      - name: Build Firmware
+        run: ./build.sh jdcloud_ipq60xx_libwrt_Nowifi
+
+          echo "云编译发布" > release_body.txt
+          echo "源码：${{ env.BUILD_SRC }}" >> release_body.txt
+          echo "Kernel: ${{ env.KVER }}" >> release_body.txt
+          echo "无wifi" >> release_body.txt
+          echo "LAN地址: 192.168.1.1" >> release_body.txt
+          echo "插件：" >> release_body.txt
+          echo "$(grep -oP "luci-app-[a-zA-Z0-9]{1,30}" ./firmware/*.manifest | awk -F":" '{print $NF}')"  >> release_body.txt
+
+      - name: Release Firmware
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.BUILD_DATE }}_${{ inputs.model }}
+          files: ${{ inputs.model == 'n1_immwrt' && env.PACKAGED_OUTPUTPATH || './firmware' }}/*.*
+          body_path: ./release_body.txt
