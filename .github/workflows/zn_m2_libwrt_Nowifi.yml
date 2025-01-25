@@ -1,4 +1,12 @@
-name: ZN-M2 LibWRT NoWifi
+name: JDCloud IPQ60xx LibWRT NoWifi
+
+on:
+  schedule:
+    - cron: "0 19 * * *"  # UTC时间18点=北京时间凌晨2点
+  workflow_dispatch: {}   # 保留手动触发能力
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   build:
