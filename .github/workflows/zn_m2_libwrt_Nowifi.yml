@@ -55,7 +55,12 @@ jobs:
           key: ${{ runner.os }}-znm2-nowifi-${{ hashFiles('**/repo_flag') }}
           restore-keys: |
             ${{ runner.os }}-jdcloud-nowifi-
-
+      - name: Cache OpenWrt Source
+        uses: actions/cache@v4
+        with:
+          path: ./action_build
+          key: ${{ runner.os }}-openwrt-source-${{ hashFiles('compilecfg/zn_m2_libwrt_Nowifi.ini') }}
+        
       - name: Build Firmware
         run: ./build.sh zn_m2_libwrt_Nowifi release
 
