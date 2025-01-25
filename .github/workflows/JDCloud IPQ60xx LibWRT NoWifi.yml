@@ -54,7 +54,16 @@ jobs:
           key: ${{ runner.os }}-jdcloud-nowifi-${{ hashFiles('**/repo_flag') }}
           restore-keys: |
             ${{ runner.os }}-jdcloud-nowifi-
-
+            
+      - name: Cache OpenWrt Source
+        uses: actions/cache@v4
+        with:
+          path: ./action_build
+          key: ${{ runner.os }}-openwrt-source-${{ hashFiles('compilecfg/jdcloud_ipq60xx_libwrt_Nowifi.ini') }}
+            
+      - name: Build Firmware
+        run: ./build.sh jdcloud_ipq60xx_libwrt_Nowifi release
+        
       - name: Get Kernel Verion
         run: |
           # 获取内核版本
