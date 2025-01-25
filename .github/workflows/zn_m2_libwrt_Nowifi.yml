@@ -54,7 +54,7 @@ jobs:
             ./action_build/staging_dir
           key: ${{ runner.os }}-znm2-nowifi-${{ hashFiles('**/repo_flag') }}
           restore-keys: |
-            ${{ runner.os }}-jdcloud-nowifi-
+            ${{ runner.os }}-zn_m2_libwrt_Nowifi-
       - name: Cache OpenWrt Source
         uses: actions/cache@v4
         with:
