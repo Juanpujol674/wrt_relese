@@ -1,4 +1,4 @@
-name: JDCloud zn_m2_libwrt_Nowifi
+name: zn_m2_libwrt_Nowifi
 
 on:
   schedule:
