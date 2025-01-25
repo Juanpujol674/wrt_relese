@@ -57,7 +57,7 @@ jobs:
             ${{ runner.os }}-jdcloud-nowifi-
 
       - name: Build Firmware
-        run: ./build.sh build.sh zn_m2_libwrt_Nowifi
+        run: ./build.sh zn_m2_libwrt_Nowifi release
 
       - name: Get Kernel Verion
         run: |
