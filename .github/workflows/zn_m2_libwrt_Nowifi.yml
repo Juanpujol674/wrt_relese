@@ -1,4 +1,4 @@
-name: JDCloud IPQ60xx LibWRT NoWifi
+name: JDCloud zn_m2_libwrt_Nowifi
 
 on:
   schedule:
