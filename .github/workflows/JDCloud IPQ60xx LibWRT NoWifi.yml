@@ -53,7 +53,7 @@ jobs:
             ./action_build/staging_dir
           key: ${{ runner.os }}-jdcloud-nowifi-${{ hashFiles('**/repo_flag') }}
           restore-keys: |
-            ${{ runner.os }}-jdcloud-nowifi-
+            ${{ runner.os }}-JDCloud IPQ60xx LibWRT NoWifi-
             
       - name: Cache OpenWrt Source
         uses: actions/cache@v4
