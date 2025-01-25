@@ -46,18 +46,21 @@ jobs:
       - name: Pre Clone
         run: ./pre_clone_action.sh jdcloud_ipq60xx_libwrt
 
-      - name: Cache Dependencies
+      - name: Cache OpenWrt Source
         uses: actions/cache@v4
         with:
-          path: |
-            ./action_build/.ccache
-            ./action_build/staging_dir
-          key: ${{ runner.os }}-jdcloud_ipq60xx_libwrt-${{ hashFiles('**/repo_flag') }}
-          restore-keys: |
-            ${{ runner.os }}-jdcloud-nowifi-
-
+          path: ./action_build
+          key: ${{ runner.os }}-openwrt-source-${{ hashFiles('compilecfg/jdcloud_ipq60xx_libwrt.ini
+') }}
+        
       - name: Build Firmware
-        run: ./build.sh jdcloud_ipq60xx_libwrt
+        run: ./build.sh jdcloud_ipq60xx_libwrt release
+
+      - name: Get Kernel Verion
+        run: |
+          # 获取内核版本
+          echo "KVER=$(find ./action_build/dl -maxdepth 1 -name "linux-[4-6]\.*" | sort -r | head -n 1 | grep -oE "[4-6]\.[0-9]{1,3}\.[0-9]{1,3}")" >> $GITHUB_ENV
+        
       - name: Get Kernel Verion
         run: |
           # 获取内核版本
