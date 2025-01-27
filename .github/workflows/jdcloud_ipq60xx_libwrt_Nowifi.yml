@@ -102,17 +102,10 @@ jobs:
           echo "云编译发布" > release_body.txt
           echo "源码：${{ env.BUILD_SRC }}" >> release_body.txt
           echo "Kernel: ${{ env.KVER }}" >> release_body.txt
-          echo "无wifi" >> release_body.txt
+          echo "无wifi版本" >> release_body.txt
           echo "LAN地址: 192.168.1.1" >> release_body.txt
           echo "插件：" >> release_body.txt
           echo "$(grep -oP "luci-app-[a-zA-Z0-9]{1,30}" ./firmware/*.manifest | awk -F":" '{print $NF}')"  >> release_body.txt
-
-      - name: Release Firmware
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.BUILD_DATE }}_${{ inputs.model }}
-          files: ${{ inputs.model == 'n1_immwrt' && env.PACKAGED_OUTPUTPATH || './firmware' }}/*.*
-          body_path: ./release_body.txt
           
       - name: Debug Release Body
         run: |
