@@ -1,5 +1,5 @@
 name: zn_m2_libwrt_Nowifi
-
+run-name: Relese - ${{ inputs.model }}
 on:
   schedule:
     - cron: "0 19 * * *"  # UTC时间18点=北京时间凌晨2点
