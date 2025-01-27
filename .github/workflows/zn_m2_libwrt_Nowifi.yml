@@ -106,13 +106,6 @@ jobs:
           echo "LAN地址: 192.168.1.1" >> release_body.txt
           echo "插件：" >> release_body.txt
           echo "$(grep -oP "luci-app-[a-zA-Z0-9]{1,30}" ./firmware/*.manifest | awk -F":" '{print $NF}')"  >> release_body.txt
-
-      - name: Release Firmware
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.BUILD_DATE }}_zn_m2_libwrt_Nowifi
-          files: ${{ inputs.model == 'n1_immwrt' && env.PACKAGED_OUTPUTPATH || './firmware' }}/*.*
-          body_path: ./release_body.txt
           
       - name: Debug Release Body
         run: |
