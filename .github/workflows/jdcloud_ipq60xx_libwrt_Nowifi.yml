@@ -38,7 +38,7 @@ jobs:
 
       - name: Initialization Values
         run: |
-          export BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d_%H.%M.%S_zn_m2_libwrt_Nowifi")  # ← 修改点
+          export BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d_%H.%M.%S_JDCloud IPQ60xx LibWRT NoWifi")  # ← 修改点
           echo "BUILD_DATE=$BUILD_DATE" >> $GITHUB_ENV
           export BUILD_SRC=$(awk -F"=" '/REPO_URL/ {print $NF}' "./compilecfg/jdcloud_ipq60xx_libwrt_Nowifi.ini")
           echo "BUILD_SRC=$BUILD_SRC" >> $GITHUB_ENV
