@@ -2,7 +2,7 @@ name: jdcloud_ipq60xx_libwrt
 
 on:
   schedule:
-    - cron: "0 22 * * *"  # UTC时间18点=北京时间凌晨2点
+    - cron: "0 23 * * *"  # UTC时间18点=北京时间凌晨2点
   workflow_dispatch: {}   # 保留手动触发能力
 
 env:
@@ -38,7 +38,7 @@ jobs:
 
       - name: Initialization Values
         run: |
-          export BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d_%H.%M.%S")
+          export BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d_%H.%M.%S_jdcloud_ipq60xx_libwrt")  # ← 修改点
           echo "BUILD_DATE=$BUILD_DATE" >> $GITHUB_ENV
           export BUILD_SRC=$(awk -F"=" '/REPO_URL/ {print $NF}' "./compilecfg/jdcloud_ipq60xx_libwrt.ini")
           echo "BUILD_SRC=$BUILD_SRC" >> $GITHUB_ENV
@@ -110,6 +110,7 @@ jobs:
       - name: Release Firmware
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.BUILD_DATE }}_${{ inputs.model }}
+          tag_name: ${{ env.BUILD_DATE }}  # ← 使用改造后的变量
+          name: ${{ env.BUILD_DATE }}      # ← 新增标题参数
           files: ${{ inputs.model == 'n1_immwrt' && env.PACKAGED_OUTPUTPATH || './firmware' }}/*.*
           body_path: ./release_body.txt
