@@ -1,61 +1,27 @@
-#!/usr/bin/env bash
+#!/bin/bash
+# pre_clone_action.sh 修改后内容
 
-set -e
+DEVICE_NAME=$1
+BUILD_DIR=${2:-"action_build"}  # 接收第二个参数作为构建目录
 
-source /etc/profile
-BASE_PATH=$(cd $(dirname $0) && pwd)
+INI_FILE="./compilecfg/${DEVICE_NAME}.ini"
+REPO_URL=$(awk -F"=" '/REPO_URL/ {print $2}' "$INI_FILE" | tr -d '[:space:]')
+REPO_BRANCH=$(awk -F"=" '/REPO_BRANCH/ {print $2}' "$INI_FILE" | tr -d '[:space:]')
 
-Dev=$1
+echo "▼▼▼▼▼ 克隆参数验证 ▼▼▼▼▼"
+echo "设备名称: $DEVICE_NAME"
+echo "仓库地址: $REPO_URL"
+echo "分支名称: $REPO_BRANCH"
+echo "构建目录: $BUILD_DIR"
 
-CONFIG_FILE="$BASE_PATH/deconfig/$Dev.config"
-INI_FILE="$BASE_PATH/compilecfg/$Dev.ini"
+# 清理旧目录
+rm -rf "$BUILD_DIR"
 
-if [[ ! -f $CONFIG_FILE ]]; then
-    echo "Config not found: $CONFIG_FILE"
+# 执行克隆（关键修正点）
+git clone "$REPO_URL" -b "$REPO_BRANCH" "$BUILD_DIR" || {
+    echo "::error::源码克隆失败！"
     exit 1
-fi
-
-if [[ ! -f $INI_FILE ]]; then
-    echo "INI file not found: $INI_FILE"
-    exit 1
-fi
-
-read_ini_by_key() {
-    local key=$1
-    awk -F"=" -v key="$key" '$1 == key {print $2}' "$INI_FILE"
 }
 
-REPO_URL=$(read_ini_by_key "REPO_URL")
-REPO_BRANCH=$(read_ini_by_key "REPO_BRANCH")
-REPO_BRANCH=${REPO_BRANCH:-main}
-BUILD_DIR="$BASE_PATH/action_build"
-
-echo "Cloning repository: $REPO_URL, Branch: $REPO_BRANCH"  # 打印出调试信息
-
-# 清理 REPO_BRANCH，去掉注释和尾部空格
-REPO_BRANCH=$(echo "$REPO_BRANCH" | sed 's/#.*//' | sed 's/[[:space:]]*$//')
-
-# 检查 REPO_BRANCH 是否为空
-echo "Using REPO_BRANCH: '$REPO_BRANCH'"  # 调试信息，检查分支名称
-if [[ -z "$REPO_BRANCH" || "$REPO_BRANCH" =~ [[:space:]] ]]; then
-    echo "Invalid branch name: $REPO_BRANCH"
-    exit 1
-fi
-
-echo "$REPO_URL $REPO_BRANCH"
-echo "$REPO_URL/$REPO_BRANCH" >"$BASE_PATH/repo_flag"
-
-# 克隆 Git 仓库
-git clone --depth 1 -b "$REPO_BRANCH" "$REPO_URL" "$BUILD_DIR"
-
-# GitHub Action 移除国内下载源
-PROJECT_MIRRORS_FILE="$BUILD_DIR/scripts/projectsmirrors.json"
-
-if [ -f "$PROJECT_MIRRORS_FILE" ]; then
-    sed -i '/.cn\//d; /tencent/d; /aliyun/d' "$PROJECT_MIRRORS_FILE"
-fi
-
-# 执行 git reset 时，确保 REPO_BRANCH 是合法的
-echo "Resetting repository to branch: $REPO_BRANCH"
-git fetch origin "$REPO_BRANCH"
-git reset --hard "origin/$REPO_BRANCH"
+# 标记仓库状态
+touch "$BUILD_DIR/repo_flag"
