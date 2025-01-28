@@ -7,8 +7,8 @@ BASE_PATH=$(cd $(dirname $0) && pwd)
 
 Dev=$1
 
-CONFIG_FILE="$BASE_PATH/deconfig/$Dev.config" 
-INI_FILE="$BASE_PATH/compilecfg/$Dev.ini" 
+CONFIG_FILE="$BASE_PATH/deconfig/$Dev.config"
+INI_FILE="$BASE_PATH/compilecfg/$Dev.ini"
 
 if [[ ! -f $CONFIG_FILE ]]; then
     echo "Config not found: $CONFIG_FILE"
@@ -26,17 +26,16 @@ read_ini_by_key() {
 }
 
 REPO_URL=$(read_ini_by_key "REPO_URL")
-# 处理URL，去除可能的多余部分
-REPO_URL=$(echo "$REPO_URL" | cut -d ' ' -f 1)
-REPO_BRANCH=$(read_ini_by_key "REPO_BRANCH" | cut -d '#' -f 1 | xargs)
+REPO_BRANCH=$(read_ini_by_key "REPO_BRANCH")
 REPO_BRANCH=${REPO_BRANCH:-main}
 BUILD_DIR="$BASE_PATH/action_build"
 
+echo $REPO_URL $REPO_BRANCH
 echo "$REPO_URL/$REPO_BRANCH" >"$BASE_PATH/repo_flag"
-git clone --depth 1 -b "$REPO_BRANCH" "$REPO_URL" "$BUILD_DIR"
+git clone --depth 1 -b $REPO_BRANCH $REPO_URL $BUILD_DIR
 
 # GitHub Action 移除国内下载源
-PROJECT_MIRRORS_FILE="$BUILD_DIR/scripts/projectsmirrors.json" 
+PROJECT_MIRRORS_FILE="$BUILD_DIR/scripts/projectsmirrors.json"
 
 if [ -f "$PROJECT_MIRRORS_FILE" ]; then
     sed -i '/.cn\//d; /tencent/d; /aliyun/d' "$PROJECT_MIRRORS_FILE"
