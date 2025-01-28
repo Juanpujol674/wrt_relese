@@ -37,10 +37,17 @@ jobs:
           sudo -E timedatectl set-timezone "Asia/Shanghai"
 
       - name: Initialization Values
+        working-directory: ${{ github.workspace }}
         run: |
           export BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d_%H.%M.%S_zn_m2_libwrt_Nowifi")  # ← 修改点
           echo "BUILD_DATE=$BUILD_DATE" >> $GITHUB_ENV
-          export BUILD_SRC=$(awk -F"=" '/REPO_URL/ {print $NF}' "./compilecfg/zn_m2_libwrt_Nowifi.ini")
+          REPO_URL=$(awk -F"=" '/REPO_URL/ {print $NF}' "./compilecfg/zn_m2_libwrt_Nowifi.ini")
+          if [[ -z "$REPO_URL" ]]; then
+              echo "::warning::REPO_URL not found in ini file. Using empty string."
+              export BUILD_SRC=""
+          else
+              export BUILD_SRC="$REPO_URL"
+          fi
           echo "BUILD_SRC=$BUILD_SRC" >> $GITHUB_ENV
 
       - name: Pre Clone
@@ -59,6 +66,7 @@ jobs:
           key: ${{ runner.os }}-znm2-nowifi-${{ hashFiles('**/repo_flag') }}
           restore-keys: |
             ${{ runner.os }}-zn_m2_libwrt_Nowifi-
+            
       - name: Cache OpenWrt Source
         uses: actions/cache@v4
         with:
