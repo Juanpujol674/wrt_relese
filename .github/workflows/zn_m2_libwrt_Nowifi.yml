@@ -50,15 +50,15 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ./action_build/.ccache
-            ./action_build/staging_dir
+            ./zn_m2-libwrt-612/.ccache
+            ./zn_m2-libwrt-612/staging_dir
           key: ${{ runner.os }}-znm2-nowifi-${{ hashFiles('**/repo_flag') }}
           restore-keys: |
             ${{ runner.os }}-zn_m2_libwrt_Nowifi-
       - name: Cache OpenWrt Source
         uses: actions/cache@v4
         with:
-          path: ./action_build
+          path: ./zn_m2-libwrt-612
           key: ${{ runner.os }}-openwrt-source-${{ hashFiles('compilecfg/zn_m2_libwrt_Nowifi.ini') }}
         
       - name: Build Firmware
@@ -67,7 +67,7 @@ jobs:
       - name: Get Kernel Verion
         run: |
           # 获取内核版本
-          echo "KVER=$(find ./action_build/dl -maxdepth 1 -name "linux-[4-6]\.*" | sort -r | head -n 1 | grep -oE "[4-6]\.[0-9]{1,3}\.[0-9]{1,3}")" >> $GITHUB_ENV
+          echo "KVER=$(find ./zn_m2-libwrt-612/dl -maxdepth 1 -name "linux-[4-6]\.*" | sort -r | head -n 1 | grep -oE "[4-6]\.[0-9]{1,3}\.[0-9]{1,3}")" >> $GITHUB_ENV
 
       - name: Delete Old Cache
         run: |
@@ -77,8 +77,8 @@ jobs:
           done
           # 输出缓存状态
           echo "========cache status========"
-          echo "ccache: $(du -sh ./action_build/.ccache | cut -f 1)"
-          echo "staging: $(du -sh ./action_build/staging_dir | cut -f 1)"
+          echo "ccache: $(du -sh ./zn_m2-libwrt-612/.ccache | cut -f 1)"
+          echo "staging: $(du -sh ./zn_m2-libwrt-612/staging_dir | cut -f 1)"
 
       - name: Machine Information
         run: |
@@ -92,7 +92,7 @@ jobs:
         if: ${{ inputs.model == 'n1_immwrt' }}
         uses: unifreq/openwrt_packit@master
         env:
-          OPENWRT_ARMVIRT: firmware/*.tar.gz
+          OPENWRT_ARMVIRT: zn_m2-libwrt-612/firmware/*.tar.gz
           PACKAGE_SOC: s905d
           KERNEL_VERSION_NAME: 6.6.y
           WHOAMI: DavidWei
