@@ -44,6 +44,7 @@ jobs:
           echo "BUILD_SRC=$BUILD_SRC" >> $GITHUB_ENV
 
       - name: Pre Clone
+        working-directory: ${{ github.workspace }}
         run: |
           REPO_URL=$(awk -F"=" '/REPO_URL/ {print $NF}' "./compilecfg/zn_m2_libwrt_Nowifi.ini")
           REPO_BRANCH=$(awk -F"=" '/REPO_BRANCH/ {print $NF}' "./compilecfg/zn_m2_libwrt_Nowifi.ini" || echo "main")
