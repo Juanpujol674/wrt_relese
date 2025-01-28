@@ -44,7 +44,10 @@ jobs:
           echo "BUILD_SRC=$BUILD_SRC" >> $GITHUB_ENV
 
       - name: Pre Clone
-        run: ./pre_clone_action.sh zn_m2_libwrt_Nowifi
+        run: |
+          REPO_URL=$(awk -F"=" '/REPO_URL/ {print $NF}' "./compilecfg/zn_m2_libwrt_Nowifi.ini")
+          REPO_BRANCH=$(awk -F"=" '/REPO_BRANCH/ {print $NF}' "./compilecfg/zn_m2_libwrt_Nowifi.ini" || echo "main")
+          ./pre_clone_action.sh zn_m2_libwrt_Nowifi "$REPO_URL" "$REPO_BRANCH"
 
       - name: Cache Dependencies
         uses: actions/cache@v4
