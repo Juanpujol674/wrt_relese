@@ -32,10 +32,10 @@ BUILD_DIR="$BASE_PATH/action_build"
 
 echo "Cloning repository: $REPO_URL, Branch: $REPO_BRANCH"  # 打印出调试信息
 
-# 清理 REPO_BRANCH，去掉注释部分
-REPO_BRANCH=$(echo "$REPO_BRANCH" | sed 's/#.*//')
+# 清理 REPO_BRANCH，去掉注释和尾部空格
+REPO_BRANCH=$(echo "$REPO_BRANCH" | sed 's/#.*//' | sed 's/[[:space:]]*$//')
 
-# 检查 REPO_BRANCH 是否为空或包含空格
+# 检查 REPO_BRANCH 是否为空
 echo "Using REPO_BRANCH: '$REPO_BRANCH'"  # 调试信息，检查分支名称
 if [[ -z "$REPO_BRANCH" || "$REPO_BRANCH" =~ [[:space:]] ]]; then
     echo "Invalid branch name: $REPO_BRANCH"
