@@ -34,9 +34,15 @@ REPO_BRANCH=$(read_ini_by_key "REPO_BRANCH")
 REPO_BRANCH=${REPO_BRANCH:-main}  # 如果没有设置分支，默认为 main
 BUILD_DIR="$BASE_PATH/action_build"
 
-# 输出仓库信息
+# 清理分支名称，去掉可能的注释
+REPO_BRANCH=$(echo "$REPO_BRANCH" | sed 's/\s*#.*//g' | xargs)
+
+# 输出仓库信息，帮助调试
 echo "Cloning repository: $REPO_URL, Branch: $REPO_BRANCH"
 echo "$REPO_URL/$REPO_BRANCH" > "$BASE_PATH/repo_flag"
+
+# 输出实际的 git clone 命令，帮助调试
+echo "git clone --depth 1 -b $REPO_BRANCH $REPO_URL $BUILD_DIR"
 
 # 克隆指定的 Git 仓库，使用 --depth 1 来优化下载速度
 git clone --depth 1 -b "$REPO_BRANCH" "$REPO_URL" "$BUILD_DIR"
