@@ -38,6 +38,7 @@ jobs:
           sudo -E timedatectl set-timezone "Asia/Shanghai"
 
       - name: Initialization Values
+        working-directory: ${{ github.workspace }}
         run: |
           export BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d_%H.%M.%S_zn_m2_libwrt_Nowifi")  # ← 修改点
           echo "BUILD_DATE=$BUILD_DATE" >> $GITHUB_ENV
