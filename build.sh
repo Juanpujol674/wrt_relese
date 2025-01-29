@@ -37,6 +37,23 @@ if [[ -d $BASE_PATH/action_build ]]; then
     BUILD_DIR="action_build"
 fi
 
+# 拉取并重置远程分支
+echo "Fetching repository from $REPO_URL, branch $REPO_BRANCH"
+cd "$BASE_PATH/$BUILD_DIR"
+git fetch origin
+
+# 输出当前分支调试信息
+echo "Current branch before reset: $(git branch --show-current)"
+
+# 切换到指定分支并重置
+git checkout "$REPO_BRANCH" || git checkout -b "$REPO_BRANCH" origin/"$REPO_BRANCH"
+git reset --hard origin/"$REPO_BRANCH"
+
+# 如果你使用了 commit hash 来回滚到指定提交，执行以下命令
+if [[ "$COMMIT_HASH" != "none" ]]; then
+    git reset --hard "$COMMIT_HASH"
+fi
+
 $BASE_PATH/update.sh "$REPO_URL" "$REPO_BRANCH" "$BASE_PATH/$BUILD_DIR" "$COMMIT_HASH"
 
 \cp -f "$CONFIG_FILE" "$BASE_PATH/$BUILD_DIR/.config"
