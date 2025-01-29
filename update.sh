@@ -74,8 +74,8 @@ update_feeds() {
     fi
 
     # 更新 feeds
-    ./scripts/feeds clean
-    ./scripts/feeds update -a
+    ./scripts/feeds update small8
+    ./scripts/feeds install -a -p small8
 }
 
 remove_unwanted_packages() {
