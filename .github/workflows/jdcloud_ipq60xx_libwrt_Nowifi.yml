@@ -49,7 +49,8 @@ jobs:
  
       - name: Initialization Values 
         run: |
-          export BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d_%H.%M.%S_JDCloud IPQ60xx LibWRT NoWifi")  # ← 修改点 
+          # 修改后的标签格式（使用下划线替代空格）
+          export BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d_%H.%M.%S_JDCloud_IPQ60xx_LibWRT_NoWifi")
           echo "BUILD_DATE=$BUILD_DATE" >> $GITHUB_ENV 
           export BUILD_SRC=$(awk -F"=" '/REPO_URL/ {print $NF}' "./compilecfg/jdcloud_ipq60xx_libwrt_Nowifi.ini") 
           echo "BUILD_SRC=$BUILD_SRC" >> $GITHUB_ENV 
@@ -126,7 +127,9 @@ jobs:
       - name: Release Firmware 
         uses: softprops/action-gh-release@v2 
         with:
-          tag_name: ${{ env.BUILD_DATE }}  # ← 使用改造后的变量 
-          name: ${{ env.BUILD_DATE }}      # ← 新增标题参数 
+          tag_name: ${{ env.BUILD_DATE }}
+          name: "Build ${{ env.BUILD_DATE }}"  # 添加可读性更好的标题
           files: ${{ inputs.model  == 'n1_immwrt' && env.PACKAGED_OUTPUTPATH || './firmware' }}/*.*
-          body_path: ./release_body.txt  
+          body_path: ./release_body.txt
+          draft: false
+          prerelease: fals
