@@ -55,11 +55,8 @@ jobs:
 
       - name: Pre Clone
         run: |
-          echo "▼▼▼▼▼ 克隆参数验证 ▼▼▼▼▼"
-          echo "设备名称: zn_m2_libwrt_Nowifi"
-          echo "仓库地址: https://github.com/LiBwrt/openwrt-6.x.git"
-          echo "分支名称: ${{ env.REPO_BRANCH }}"
-          echo "构建目录: zn_m2-libwrt-612"
+          echo "Using REPO_BRANCH: kernel-6.12"  # 明确设置分支
+          export REPO_BRANCH="kernel-6.12"
           ./pre_clone_action.sh zn_m2_libwrt_Nowifi
 
       - name: Cache Dependencies
