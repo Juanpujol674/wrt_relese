@@ -36,6 +36,11 @@ jobs:
           sudo -E systemctl daemon-reload
           sudo -E timedatectl set-timezone "Asia/Shanghai"
 
+      - name: Install System Dependencies 
+        run: |
+          sudo apt-get update && \
+          sudo apt-get install -y build-essential git-core libncurses5-dev zlib1g-dev 
+
       - name: Initialization Values
         run: |
           export BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d_%H.%M.%S_zn_m2_libwrt_Nowifi")  # ← 修改点
@@ -45,6 +50,13 @@ jobs:
           # 调试输出，确认环境变量是否设置正确
           echo "BUILD_DATE: $BUILD_DATE"
           echo "BUILD_SRC: $BUILD_SRC"
+
+      - name: Verify Dependencies 
+        run: |
+          which gcc && \
+          which git && \
+          dpkg -s libncurses5-dev && \
+          dpkg -s zlib1g-dev 
 
       - name: Debug Initialization Values
         run: |
