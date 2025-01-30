@@ -88,7 +88,9 @@ jobs:
           key: ${{ runner.os }}-openwrt-source-${{ hashFiles('compilecfg/zn_m2_libwrt_Nowifi.ini') }}
 
       - name: Build Firmware
-        run: ./build.sh zn_m2_libwrt_Nowifi release
+        run: |  # 注意此处使用 | 表示多行命令
+          make clean  # 清理旧文件
+          ./build.sh zn_m2_libwrt_Nowifi release
 
       - name: Get Kernel Version
         run: |
