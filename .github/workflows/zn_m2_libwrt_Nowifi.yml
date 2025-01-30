@@ -43,11 +43,10 @@ jobs:
 
       - name: Initialization Values
         run: |
-          export BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d_%H.%M.%S_zn_m2_libwrt_Nowifi")  # ← 修改点
+          export BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d_%H.%M.%S_zn_m2_libwrt_Nowifi")
           echo "BUILD_DATE=$BUILD_DATE" >> $GITHUB_ENV
           export BUILD_SRC=$(awk -F"=" '/REPO_URL/ {print $NF}' "./compilecfg/zn_m2_libwrt_Nowifi.ini")
           echo "BUILD_SRC=$BUILD_SRC" >> $GITHUB_ENV
-          # 调试输出，确认环境变量是否设置正确
           echo "BUILD_DATE: $BUILD_DATE"
           echo "BUILD_SRC: $BUILD_SRC"
 
@@ -60,15 +59,15 @@ jobs:
 
       - name: Debug Initialization Values
         run: |
-          # 在后续步骤前再次输出环境变量，确认是否传递正确
           echo "Debugging BUILD_DATE and BUILD_SRC"
           echo "BUILD_DATE: ${{ env.BUILD_DATE }}"
           echo "BUILD_SRC: ${{ env.BUILD_SRC }}"
 
       - name: Pre Clone
         run: |
-          echo "Using REPO_BRANCH: kernel-6.12"  # 明确设置分支
+          echo "Using REPO_BRANCH: kernel-6.12"
           export REPO_BRANCH="kernel-6.12"
+          mkdir -p zn_m2-libwrt-612
           ./pre_clone_action.sh zn_m2_libwrt_Nowifi
 
       - name: Cache Dependencies
@@ -86,10 +85,21 @@ jobs:
         with:
           path: ./zn_m2-libwrt-612
           key: ${{ runner.os }}-openwrt-source-${{ hashFiles('compilecfg/zn_m2_libwrt_Nowifi.ini') }}
+          restore-keys: |
+            ${{ runner.os }}-openwrt-source-
+
+      - name: Check Source Directory
+        run: |
+          echo "Current directory: $(pwd)"
+          ls -la
+          if [ ! -d "zn_m2-libwrt-612" ]; then
+            echo "Error: zn_m2-libwrt-612 directory not found!"
+            exit 1
+          fi
 
       - name: Build Firmware
         run: |
-          cd zn_m2-libwrt-612      # 关键修复：进入源码目录
+          cd zn_m2-libwrt-612
           make clean
           ./build.sh zn_m2_libwrt_Nowifi release
 
