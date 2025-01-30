@@ -110,7 +110,10 @@ jobs:
       - name: Build Firmware
         run: |
           cd zn_m2-libwrt-612
+          export TERM=dumb  # 强制指定终端类型
           make clean
+          # 确保存在 .config 或使用 defconfig
+          [ -f .config ] || make defconfig  
           ./build.sh zn_m2_libwrt_Nowifi release
 
       - name: Get Kernel Version
