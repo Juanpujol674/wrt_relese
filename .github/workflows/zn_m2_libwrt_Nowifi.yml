@@ -67,11 +67,17 @@ jobs:
         run: |
           echo "Using REPO_BRANCH: kernel-6.12"
           export REPO_BRANCH="kernel-6.12"
-          mkdir -p zn_m2-libwrt-612
-          ./pre_clone_action.sh zn_m2_libwrt_Nowifi
+          
+          # 强制清理旧目录并重新克隆
+          rm -rf zn_m2-libwrt-612
+          git clone --depth=1 --branch=$REPO_BRANCH $BUILD_SRC zn_m2-libwrt-612
+          cd zn_m2-libwrt-612
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
 
       - name: Cache Dependencies
         uses: actions/cache@v4
+        id: cache-deps
         with:
           path: |
             ./zn_m2-libwrt-612/.ccache
@@ -82,20 +88,24 @@ jobs:
 
       - name: Cache OpenWrt Source
         uses: actions/cache@v4
+        id: cache-source
         with:
           path: ./zn_m2-libwrt-612
           key: ${{ runner.os }}-openwrt-source-${{ hashFiles('compilecfg/zn_m2_libwrt_Nowifi.ini') }}
           restore-keys: |
             ${{ runner.os }}-openwrt-source-
+        # 仅在缓存未命中时执行源码操作
+        if: steps.cache-source.outputs.cache-hit != 'true'
 
-      - name: Check Source Directory
+      - name: Verify Source Code
         run: |
-          echo "Current directory: $(pwd)"
-          ls -la
-          if [ ! -d "zn_m2-libwrt-612" ]; then
-            echo "Error: zn_m2-libwrt-612 directory not found!"
+          cd zn_m2-libwrt-612
+          if [ ! -f "Makefile" ]; then
+            echo "❌ Error: Makefile not found in source directory!"
             exit 1
           fi
+          echo "✅ Verified: Makefile exists"
+          ls -la
 
       - name: Build Firmware
         run: |
