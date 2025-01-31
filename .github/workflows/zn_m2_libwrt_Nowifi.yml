@@ -36,16 +36,36 @@ jobs:
           sudo -E systemctl daemon-reload
           sudo -E timedatectl set-timezone "Asia/Shanghai"
 
-      - name: Install System Dependencies 
+
+          
+
+      - name: Clean APT Cache
         run: |
-          sudo apt-get update && \
-          sudo apt-get install -y \
-            build-essential \
-            git-core \
-            libncursesw5-dev \  # 关键依赖
-            zlib1g-dev \
-            libssl-dev \
-            python3-distutils
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
+
+      - name: Install System Dependencies
+        run: |
+          sudo sed -i 's/azure\.archive\.ubuntu\.com/mirrors.aliyun.com/g' /etc/apt/sources.list
+          for i in {1..3}; do
+            sudo apt-get update && \
+            sudo apt-get install -y \
+              build-essential \
+              git-core \
+              libncursesw5-dev \
+              zlib1g-dev \
+              libssl-dev \
+              python3-distutils \
+              libjson-c-dev \
+              flex bison && break
+            echo "Retrying... ($i/3)"
+            sleep 5
+          done
+
+      - name: Verify Dependencies 
+        run: |
+          dpkg -s libncursesw5-dev zlib1g-dev libssl-dev
+          which gcc g++ git make
 
       - name: Initialization Values
         run: |
