@@ -105,9 +105,9 @@ remove_unwanted_packages() {
         \rm -rf ./feeds/packages/net/$pkg
     done
 
-    for pkg in "${small8_packages[@]}"; do
-        \rm -rf ./feeds/small8/$pkg
-    done
+    #for pkg in "${small8_packages[@]}"; do
+        #\rm -rf ./feeds/small8/$pkg
+    #done
 
     if [[ -d ./package/istore ]]; then
         \rm -rf ./package/istore
@@ -135,18 +135,17 @@ install_small8() {
         luci-app-mihomo luci-app-homeproxy luci-app-amlogic
 }
 
-install_feeds() {
-    ./scripts/feeds update -i
-    for dir in $BUILD_DIR/feeds/*; do
-        # 检查是否为目录并且不以 .tmp 结尾，并且不是软链接
-        if [ -d "$dir" ] && [[ ! "$dir" == *.tmp ]] && [ ! -L "$dir" ]; then
-            if [[ $(basename "$dir") == "small8" ]]; then
-                install_small8
-            else
-                ./scripts/feeds install -f -ap $(basename "$dir")
-            fi
-        fi
-    done
+update_feeds() {
+    # 添加以下行重置small8源
+    if [ -d "feeds/small8" ]; then
+        pushd feeds/small8
+        git reset --hard origin/main
+        git clean -fdx
+        popd
+    fi
+    # 其余原有代码
+    ./scripts/feeds update small8
+    ./scripts/feeds install -a -p small8
 }
 
 fix_default_set() {
