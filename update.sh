@@ -57,17 +57,6 @@ reset_feeds_conf() {
     fi
 }
 
-update_feeds() {
-    # 删除注释行
-    sed -i '/^#/d' "$BUILD_DIR/$FEEDS_CONF"
-
-    # 检查并添加 small-package 源
-    if ! grep -q "small-package" "$BUILD_DIR/$FEEDS_CONF"; then
-        # 确保文件以换行符结尾
-        [ -z "$(tail -c 1 "$BUILD_DIR/$FEEDS_CONF")" ] || echo "" >>"$BUILD_DIR/$FEEDS_CONF"
-        echo "src-git small8 https://github.com/kenzok8/small-package" >>"$BUILD_DIR/$FEEDS_CONF"
-    fi
-
     # 添加bpf.mk解决更新报错
     if [ ! -f "$BUILD_DIR/include/bpf.mk" ]; then
         touch "$BUILD_DIR/include/bpf.mk"
@@ -133,6 +122,19 @@ install_small8() {
         luci-app-store quickstart luci-app-quickstart luci-app-istorex luci-app-cloudflarespeedtest \
         luci-theme-argon netdata luci-app-netdata lucky luci-app-lucky luci-app-openclash mihomo \
         luci-app-mihomo luci-app-homeproxy luci-app-amlogic
+}
+# 定义 install_feeds 函数（在调用前定义）
+install_feeds() {
+    ./scripts/feeds update -i
+    for dir in $BUILD_DIR/feeds/*; do
+        if [ -d "$dir" ] && [[ ! "$dir" == *.tmp ]] && [ ! -L "$dir" ]; then
+            if [[ $(basename "$dir") == "small8" ]]; then
+                install_small8
+            else
+                ./scripts/feeds install -f -ap $(basename "$dir")
+            fi
+        fi
+    done
 }
 
 update_feeds() {
