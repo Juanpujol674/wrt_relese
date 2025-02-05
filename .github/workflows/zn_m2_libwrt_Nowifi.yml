@@ -46,7 +46,6 @@ jobs:
 
       - name: Verify Dependencies (Combined)
         run: |
-          # 合并依赖检查步骤
           echo "=== Core Dependencies ==="
           which gcc || { echo "gcc not found"; exit 1; }
           which g++ || { echo "g++ not found"; exit 1; }
@@ -63,7 +62,6 @@ jobs:
 
       - name: Prepare Workspace
         run: |
-          # 强制清理旧目录
           rm -rf zn_m2-libwrt-612
           git clone --depth=1 --branch=kernel-6.12 $BUILD_SRC zn_m2-libwrt-612
 
@@ -79,6 +77,30 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-znm2-nowifi-
 
+      - name: Apply Hostapd Fixes
+        run: |
+          cd zn_m2-libwrt-612
+          # 禁用HE_MU_EDCA相关功能
+          sed -i '/CONFIG_IEEE80211AX/d' package/network/services/hostapd/Makefile
+          echo "# CONFIG_IEEE80211AX is not set" >> package/network/services/hostapd/Makefile
+          
+          # 创建修复补丁
+          mkdir -p package/network/services/hostapd/patches
+          cat << 'EOF' > package/network/services/hostapd/patches/999-fix-he_mu_edca.patch
+          --- a/src/ap/hostapd.c
+          +++ b/src/ap/hostapd.c
+          @@ -4512,7 +4512,9 @@
+                   return -1;
+               }
+            
+          +#ifdef CONFIG_IEEE80211AX
+               hapd->iface->conf->he_mu_edca.he_qos_info &= 0xfff0;
+          +#endif
+               if (freq->he_enabled && set_he) {
+                   hapd->iface->conf->he_op.he_bss_color = cs->bss_color;
+                   hapd->iface->conf->he_op.he_bss_color_disabled = 0;
+          EOF
+
       - name: Setup Feeds
         run: |
           cd zn_m2-libwrt-612
@@ -90,6 +112,12 @@ jobs:
           cd zn_m2-libwrt-612
           export TERM=dumb
           [ -f .config ] || make defconfig
+          
+          # 强制禁用无线组件
+          echo "CONFIG_PACKAGE_hostapd=n" >> .config
+          echo "CONFIG_PACKAGE_wpad-basic-mbedtls=n" >> .config
+          
+          make oldconfig
           make download -j$(nproc)
           make -j$(($(nproc) + 1)) || make -j1 V=s
 
