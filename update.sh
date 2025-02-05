@@ -59,30 +59,20 @@ reset_feeds_conf() {
     fi
 }
 
-# 更新 feeds
-update_feeds() {
+# install_feeds
+install_feeds() {
     cd "$BUILD_DIR"
-    echo "Updating feeds..."
-
-    # 强制重置 small8 源
-    if [[ -d feeds/small8 ]]; then
-        pushd feeds/small8
-        git reset --hard origin/main
-        git clean -fdx
-        popd
-    fi
-
-    # 删除 feeds.conf.default 中的注释行
-    sed -i '/^#/d' "$FEEDS_CONF"
-
-    # 添加 small-package 源（如果不存在）
-    if ! grep -q "small-package" "$FEEDS_CONF"; then
-        echo "src-git small8 https://github.com/kenzok8/small-package" >> "$FEEDS_CONF"
-    fi
-
-    # 更新并安装 feeds
-    ./scripts/feeds update -a
-    ./scripts/feeds install -a
+    echo "Installing feeds..."
+    ./scripts/feeds update -i
+    for dir in feeds/*; do
+        if [[ -d "$dir" && ! "$dir" == *.tmp && ! -L "$dir" ]]; then
+            if [[ $(basename "$dir") == "small8" ]]; then
+                install_small8
+            else
+                ./scripts/feeds install -f -ap "$(basename "$dir")"
+            fi
+        fi
+    done
 }
 
 # 移除不需要的包
@@ -177,7 +167,7 @@ main() {
     clone_repo
     clean_up
     reset_feeds_conf
-    update_feeds
+    install_feeds
     remove_unwanted_packages
     update_golang
     install_small8
