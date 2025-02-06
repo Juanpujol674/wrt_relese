@@ -80,26 +80,12 @@ jobs:
       - name: Apply Hostapd Fixes
         run: |
           cd zn_m2-libwrt-612
-          # 禁用HE_MU_EDCA相关功能
-          sed -i '/CONFIG_IEEE80211AX/d' package/network/services/hostapd/Makefile
-          echo "# CONFIG_IEEE80211AX is not set" >> package/network/services/hostapd/Makefile
-          
-          # 创建修复补丁
-          mkdir -p package/network/services/hostapd/patches
-          cat << 'EOF' > package/network/services/hostapd/patches/999-fix-he_mu_edca.patch
-          --- a/src/ap/hostapd.c
-          +++ b/src/ap/hostapd.c
-          @@ -4512,7 +4512,9 @@
-                   return -1;
-               }
-            
-          +#ifdef CONFIG_IEEE80211AX
-               hapd->iface->conf->he_mu_edca.he_qos_info &= 0xfff0;
-          +#endif
-               if (freq->he_enabled && set_he) {
-                   hapd->iface->conf->he_op.he_bss_color = cs->bss_color;
-                   hapd->iface->conf->he_op.he_bss_color_disabled = 0;
-          EOF
+          # 彻底禁用hostapd编译
+          rm -rf package/network/services/hostapd
+          sed -i '/hostapd/d' feeds.conf.default
+
+          # 动态修改源代码替代补丁
+          find . -type f -name 'hostapd.c' -exec sed -i '/he_mu_edca\.he_qos_info &=/s/^/#ifdef CONFIG_IEEE80211AX\n&;#endif\n/' {} +
 
       - name: Setup Feeds
         run: |
@@ -113,9 +99,14 @@ jobs:
           export TERM=dumb
           [ -f .config ] || make defconfig
           
-          # 强制禁用无线组件
-          echo "CONFIG_PACKAGE_hostapd=n" >> .config
-          echo "CONFIG_PACKAGE_wpad-basic-mbedtls=n" >> .config
+          # 强制禁用所有无线组件
+          cat << EOF >> .config
+          CONFIG_PACKAGE_hostapd=n
+          CONFIG_PACKAGE_wpad-basic=n
+          CONFIG_PACKAGE_wpad-mbedtls=n
+          CONFIG_PACKAGE_iw=n
+          CONFIG_PACKAGE_wireless-tools=n
+          EOF
           
           make oldconfig
           make download -j$(nproc)
