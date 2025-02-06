@@ -50,20 +50,19 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ./action_build
-          key: ${{ runner.os }}-openwrt-source-${{ hashFiles('compilecfg/jdcloud_ipq60xx_libwrt.ini') }}-v4
+          key: ${{ runner.os }}-openwrt-source-${{ hashFiles('compilecfg/jdcloud_ipq60xx_libwrt.ini') }}-v5
 
-      - name: Fix libdeflate Download URL (关键修复)
+      - name: Fix libdeflate Download URL and Hash (关键修复)
         run: |
-          # 修正下载链接和哈希值
-          sed -i 's|PKG_SOURCE_URL:=.*|PKG_SOURCE_URL:=https://github.com/ebiggers/libdeflate/archive/refs/tags/|' ./action_build/tools/libdeflate/Makefile
-          sed -i 's|PKG_SOURCE:=libdeflate-$(PKG_VERSION).tar.gz|PKG_SOURCE:=v$(PKG_VERSION).tar.gz|' ./action_build/tools/libdeflate/Makefile
-          sed -i 's|PKG_HASH:=7834d9adbc9a809e0fb0d7b486060a9ae5f7819eb7f55bb8c22b10d7b3bed8da|PKG_HASH:=5efb71a74b0c6227a8b7a8360c1d0d0285d616e7d9c3a4d66a4a7a7a0a7a0a7a|' ./action_build/tools/libdeflate/Makefile
+          # 恢复原始下载链接并修正哈希值
+          sed -i 's|PKG_SOURCE_URL:=.*|PKG_SOURCE_URL:=https://github.com/ebiggers/libdeflate/releases/download/v1.22/|' ./action_build/tools/libdeflate/Makefile
+          sed -i 's|PKG_HASH:=.*|PKG_HASH:=7834d9adbc9a809e0fb0d7b486060a9ae5f7819eb7f55bb8c22b10d7b3bed8da|' ./action_build/tools/libdeflate/Makefile
 
       - name: Pre-download libdeflate
         run: |
           mkdir -p ./action_build/dl
-          wget --tries=3 --timeout=30 https://github.com/ebiggers/libdeflate/archive/refs/tags/v1.22.tar.gz -O ./action_build/dl/libdeflate-1.22.tar.gz
-          echo "5efb71a74b0c6227a8b7a8360c1d0d0285d616e7d9c3a4d66a4a7a7a0a7a0a7a  ./action_build/dl/libdeflate-1.22.tar.gz" | sha256sum -c
+          wget --tries=3 --timeout=30 https://github.com/ebiggers/libdeflate/releases/download/v1.22/libdeflate-1.22.tar.gz -O ./action_build/dl/libdeflate-1.22.tar.gz
+          echo "7834d9adbc9a809e0fb0d7b486060a9ae5f7819eb7f55bb8c22b10d7b3bed8da  ./action_build/dl/libdeflate-1.22.tar.gz" | sha256sum -c
 
       - name: Patch Compilation Flags
         run: |
@@ -83,4 +82,10 @@ jobs:
           make defconfig
           make -j2 V=s EXTRA_CFLAGS="-Wno-error=format-security"
 
-      # 后续步骤保持不变...
+      - name: Release Firmware
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.BUILD_DATE }}
+          name: ${{ env.BUILD_DATE }}
+          files: ${{ inputs.model == 'n1_immwrt' && env.PACKAGED_OUTPUTPATH || './firmware' }}/*.*
+          body_path: ./release_body.txt
