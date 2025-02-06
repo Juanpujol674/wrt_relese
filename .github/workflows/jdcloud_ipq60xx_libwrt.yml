@@ -2,8 +2,8 @@ name: jdcloud_ipq60xx_libwrt
 
 on:
   schedule:
-    - cron: "0 23 * * *"  # UTC时间18点=北京时间凌晨2点
-  workflow_dispatch: {}   # 保留手动触发能力
+    - cron: "0 23 * * *"
+  workflow_dispatch: {}
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -30,7 +30,7 @@ jobs:
           DEBIAN_FRONTEND: noninteractive
         run: |
           sudo bash -c 'bash <(curl -sL https://build-scripts.immortalwrt.org/init_build_environment.sh)'
-          sudo -E apt -yqq install dos2unix libfuse-dev
+          sudo -E apt -yqq install dos2unix libfuse-dev libtool-bin autoconf automake
           sudo -E apt -yqq autoremove --purge
           sudo -E apt -yqq clean
           sudo -E systemctl daemon-reload
@@ -38,7 +38,7 @@ jobs:
 
       - name: Initialization Values
         run: |
-          export BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d_%H.%M.%S_jdcloud_ipq60xx_libwrt")  # ← 修改点
+          export BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d_%H.%M.%S_jdcloud_ipq60xx_libwrt")
           echo "BUILD_DATE=$BUILD_DATE" >> $GITHUB_ENV
           export BUILD_SRC=$(awk -F"=" '/REPO_URL/ {print $NF}' "./compilecfg/jdcloud_ipq60xx_libwrt.ini")
           echo "BUILD_SRC=$BUILD_SRC" >> $GITHUB_ENV
@@ -50,19 +50,25 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ./action_build
-          key: ${{ runner.os }}-openwrt-source-${{ hashFiles('compilecfg/jdcloud_ipq60xx_libwrt.ini') }}
-        
-      - name: Patch Compilation Flags (关键修复)
+          key: ${{ runner.os }}-openwrt-source-${{ hashFiles('compilecfg/jdcloud_ipq60xx_libwrt.ini') }}-v3
+
+      - name: Patch Compilation Flags
         run: |
-          # 移除严格的格式安全检查选项
-          find ./action_build -type f -name "Makefile" -exec sed -i 's/-Werror=format-security//g' {} \;
-          # 调整CPU优化参数
+          find ./action_build -type f \( -name "Makefile" -o -name "*.mk" \) -exec sed -i 's/-Werror=format-security//g' {} \;
           echo "CONFIG_TARGET_OPTIMIZATION=\"-O2 -pipe -mcpu=cortex-a53\"" >> ./action_build/.config
 
-      - name: Build Firmware
+      - name: Update Feeds and Force Install
+        run: |
+          cd ./action_build
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a --force
+
+      - name: Build Firmware (关键修复)
         run: |
           cd action_build
-          make -j$(nproc) EXTRA_CFLAGS="-Wno-error=format-security"
+          make clean
+          make defconfig
+          make -j2 V=s EXTRA_CFLAGS="-Wno-error=format-security"
 
       - name: Get Kernel Version
         run: |
