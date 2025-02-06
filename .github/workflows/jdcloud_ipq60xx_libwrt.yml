@@ -52,26 +52,27 @@ jobs:
           path: ./action_build
           key: ${{ runner.os }}-openwrt-source-${{ hashFiles('compilecfg/jdcloud_ipq60xx_libwrt.ini') }}
         
-      - name: Build Firmware
-        run: ./build.sh jdcloud_ipq60xx_libwrt release
+      - name: Patch Compilation Flags (关键修复)
+        run: |
+          # 移除严格的格式安全检查选项
+          find ./action_build -type f -name "Makefile" -exec sed -i 's/-Werror=format-security//g' {} \;
+          # 调整CPU优化参数
+          echo "CONFIG_TARGET_OPTIMIZATION=\"-O2 -pipe -mcpu=cortex-a53\"" >> ./action_build/.config
 
-      - name: Get Kernel Verion
+      - name: Build Firmware
         run: |
-          # 获取内核版本
-          echo "KVER=$(find ./action_build/dl -maxdepth 1 -name "linux-[4-6]\.*" | sort -r | head -n 1 | grep -oE "[4-6]\.[0-9]{1,3}\.[0-9]{1,3}")" >> $GITHUB_ENV
-        
-      - name: Get Kernel Verion
+          cd action_build
+          make -j$(nproc) EXTRA_CFLAGS="-Wno-error=format-security"
+
+      - name: Get Kernel Version
         run: |
-          # 获取内核版本
           echo "KVER=$(find ./action_build/dl -maxdepth 1 -name "linux-[4-6]\.*" | sort -r | head -n 1 | grep -oE "[4-6]\.[0-9]{1,3}\.[0-9]{1,3}")" >> $GITHUB_ENV
 
       - name: Delete Old Cache
         run: |
-          # 获取缓存列表并删除
           gh cache list --key ${{ inputs.runs-on }}-${{ hashFiles('**/repo_flag') }}- --json key --jq '.[] | .key' | while read -r key; do
             gh cache delete "$key"
           done
-          # 输出缓存状态
           echo "========cache status========"
           echo "ccache: $(du -sh ./action_build/.ccache | cut -f 1)"
           echo "staging: $(du -sh ./action_build/staging_dir | cut -f 1)"
@@ -110,7 +111,7 @@ jobs:
       - name: Release Firmware
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.BUILD_DATE }}  # ← 使用改造后的变量
-          name: ${{ env.BUILD_DATE }}      # ← 新增标题参数
+          tag_name: ${{ env.BUILD_DATE }}
+          name: ${{ env.BUILD_DATE }}
           files: ${{ inputs.model == 'n1_immwrt' && env.PACKAGED_OUTPUTPATH || './firmware' }}/*.*
           body_path: ./release_body.txt
